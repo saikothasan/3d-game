@@ -7,28 +7,126 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="game-container">
-        <div id="sky"></div>
-        <div id="ground"></div>
-        <div id="player">
-            <div class="player-head"></div>
-            <div class="player-body"></div>
-            <div class="player-legs"></div>
+    <div id="main-menu" class="screen">
+        <div class="menu-content">
+            <h1>3D DINO RUN</h1>
+            <div class="character-selection">
+                <h3>Choose Your Character</h3>
+                <div class="character-options">
+                    <div class="character-option active" data-character="dino">
+                        <div class="character-preview dino"></div>
+                        <span>Classic Dino</span>
+                    </div>
+                    <div class="character-option" data-character="robot">
+                        <div class="character-preview robot"></div>
+                        <span>Cyber Bot</span>
+                    </div>
+                    <div class="character-option" data-character="ninja">
+                        <div class="character-preview ninja"></div>
+                        <span>Shadow Ninja</span>
+                    </div>
+                </div>
+            </div>
+            <div class="difficulty-selection">
+                <h3>Difficulty Level</h3>
+                <div class="difficulty-options">
+                    <button class="difficulty-btn active" data-difficulty="easy">Easy</button>
+                    <button class="difficulty-btn" data-difficulty="medium">Medium</button>
+                    <button class="difficulty-btn" data-difficulty="hard">Hard</button>
+                    <button class="difficulty-btn" data-difficulty="insane">Insane</button>
+                </div>
+            </div>
+            <div class="menu-buttons">
+                <button id="start-game-btn" class="menu-btn primary">Start Game</button>
+                <button id="achievements-btn" class="menu-btn">Achievements</button>
+                <button id="settings-btn" class="menu-btn">Settings</button>
+            </div>
         </div>
-        <!-- Obstacles will be dynamically added here -->
-        <div id="particles-container"></div>
     </div>
-    <div id="score-board">Score: <span id="score">0</span></div>
-    <div id="high-score-board">High Score: <span id="high-score">0</span></div>
-    <div id="game-over-message" style="display: none;">
-        Game Over! Press Space to Restart
+
+    <div id="achievements-screen" class="screen" style="display: none;">
+        <div class="achievements-content">
+            <h2>Achievements</h2>
+            <div id="achievements-list"></div>
+            <button id="back-to-menu" class="menu-btn">Back to Menu</button>
+        </div>
     </div>
-    <div id="controls-info">
-        <p>Space/Up: Jump | Down: Duck</p>
-        <p>P: Pause | M: Mute</p>
+
+    <div id="settings-screen" class="screen" style="display: none;">
+        <div class="settings-content">
+            <h2>Settings</h2>
+            <div class="setting-item">
+                <label>Sound Volume</label>
+                <input type="range" id="volume-slider" min="0" max="100" value="30">
+                <span id="volume-value">30%</span>
+            </div>
+            <div class="setting-item">
+                <label>Graphics Quality</label>
+                <select id="graphics-quality">
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                <label>Show FPS</label>
+                <input type="checkbox" id="show-fps">
+            </div>
+            <button id="settings-back-btn" class="menu-btn">Back to Menu</button>
+        </div>
     </div>
-    <div id="power-up-indicator" style="display: none;"></div>
-    <div id="day-night-indicator"></div>
+
+    <div id="game-screen" class="screen" style="display: none;">
+        <div id="game-container">
+            <div id="sky"></div>
+            <div id="ground"></div>
+            <div id="player">
+                <div class="player-head"></div>
+                <div class="player-body"></div>
+                <div class="player-legs"></div>
+            </div>
+            <div id="particles-container"></div>
+            <div id="click-effects-container"></div>
+        </div>
+        
+        <div id="game-ui">
+            <div id="score-board">Score: <span id="score">0</span></div>
+            <div id="high-score-board">High Score: <span id="high-score">0</span></div>
+            <div id="difficulty-indicator"></div>
+            <div id="fps-counter" style="display: none;">FPS: <span id="fps">60</span></div>
+            <div id="power-up-indicator" style="display: none;"></div>
+            <div id="day-night-indicator"></div>
+            <div id="pattern-indicator" style="display: none;"></div>
+            <div id="combo-indicator" style="display: none;">Combo: <span id="combo-count">0</span></div>
+        </div>
+
+        <div id="controls-info">
+            <p>Space/Click: Jump | Down/Hold Click: Duck</p>
+            <p>P: Pause | M: Mute</p>
+        </div>
+
+        <div id="pause-screen" style="display: none;">
+            <div class="pause-content">
+                <h2>PAUSED</h2>
+                <button id="resume-btn" class="menu-btn">Resume</button>
+                <button id="restart-btn" class="menu-btn">Restart</button>
+                <button id="main-menu-btn" class="menu-btn">Main Menu</button>
+            </div>
+        </div>
+
+        <div id="game-over-message" style="display: none;">
+            <div class="game-over-content">
+                <h2>Game Over!</h2>
+                <div id="final-stats"></div>
+                <div id="new-achievements"></div>
+                <div class="game-over-buttons">
+                    <button id="restart-game-btn" class="menu-btn primary">Play Again</button>
+                    <button id="menu-btn" class="menu-btn">Main Menu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="main.js"></script>
 </body>
 </html>
