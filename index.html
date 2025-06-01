@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Dino Run</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <div id="sky"></div>
+        <div id="ground"></div>
+        <div id="player">
+            <div class="player-head"></div>
+            <div class="player-body"></div>
+            <div class="player-legs"></div>
+        </div>
+        <!-- Obstacles will be dynamically added here -->
+        <div id="particles-container"></div>
+    </div>
+    <div id="score-board">Score: <span id="score">0</span></div>
+    <div id="high-score-board">High Score: <span id="high-score">0</span></div>
+    <div id="game-over-message" style="display: none;">
+        Game Over! Press Space to Restart
+    </div>
+    <div id="controls-info">
+        <p>Space/Up: Jump | Down: Duck</p>
+        <p>P: Pause | M: Mute</p>
+    </div>
+    <div id="power-up-indicator" style="display: none;"></div>
+    <div id="day-night-indicator"></div>
+    <script type="module" src="main.js"></script>
+</body>
+</html>
