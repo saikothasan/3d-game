@@ -1,48 +1,111 @@
-// Game State Management
-class GameState {
+// Sound System
+class SoundSystem {
   constructor() {
-    this.currentScreen = "main-menu"
-    this.selectedCharacter = "dino"
-    this.selectedDifficulty = "easy"
-    this.settings = {
-      volume: 30,
-      graphicsQuality: "medium",
-      showFPS: false,
-    }
-    this.achievements = new AchievementSystem()
-    this.stats = {
-      totalGamesPlayed: 0,
-      totalScore: 0,
-      totalJumps: 0,
-      totalDucks: 0,
-      totalObstaclesAvoided: 0,
-      longestCombo: 0,
-      totalPlayTime: 0,
-    }
-    this.loadData()
+    this.sounds = {}
+    this.volume = 0.3
+    this.muted = false
+    this.createSounds()
   }
 
-  saveData() {
-    localStorage.setItem(
-      "dinoGameData",
-      JSON.stringify({
-        settings: this.settings,
-        achievements: this.achievements.achievements,
-        stats: this.stats,
-      }),
-    )
+  createSounds() {
+    // Create audio contexts for different sound effects
+    this.sounds = {
+      jump: this.createBeep(220, 0.1),
+      land: this.createBeep(110, 0.05),
+      duck: this.createBeep(165, 0.08),
+      collision: this.createNoise(0.3),
+      point: this.createBeep(440, 0.1),
+      powerUp: this.createChord([262, 330, 392], 0.2),
+      achievement: this.createChord([523, 659, 784], 0.3),
+    }
   }
 
-  loadData() {
-    const saved = localStorage.getItem("dinoGameData")
-    if (saved) {
-      const data = JSON.parse(saved)
-      this.settings = { ...this.settings, ...data.settings }
-      this.stats = { ...this.stats, ...data.stats }
-      if (data.achievements) {
-        this.achievements.achievements = data.achievements
+  createBeep(frequency, duration) {
+    return () => {
+      if (this.muted) return
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)()
+      const oscillator = audioContext.createOscillator()
+      const gainNode = audioContext.createGain()
+
+      oscillator.connect(gainNode)
+      gainNode.connect(audioContext.destination)
+
+      oscillator.frequency.value = frequency
+      oscillator.type = "square"
+
+      gainNode.gain.setValueAtTime(0, audioContext.currentTime)
+      gainNode.gain.linearRampToValueAtTime(this.volume, audioContext.currentTime + 0.01)
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration)
+
+      oscillator.start(audioContext.currentTime)
+      oscillator.stop(audioContext.currentTime + duration)
+    }
+  }
+
+  createNoise(duration) {
+    return () => {
+      if (this.muted) return
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)()
+      const bufferSize = audioContext.sampleRate * duration
+      const buffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate)
+      const output = buffer.getChannelData(0)
+
+      for (let i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1
       }
+
+      const whiteNoise = audioContext.createBufferSource()
+      whiteNoise.buffer = buffer
+
+      const gainNode = audioContext.createGain()
+      whiteNoise.connect(gainNode)
+      gainNode.connect(audioContext.destination)
+
+      gainNode.gain.setValueAtTime(this.volume * 0.3, audioContext.currentTime)
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration)
+
+      whiteNoise.start(audioContext.currentTime)
     }
+  }
+
+  createChord(frequencies, duration) {
+    return () => {
+      if (this.muted) return
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)()
+
+      frequencies.forEach((freq) => {
+        const oscillator = audioContext.createOscillator()
+        const gainNode = audioContext.createGain()
+
+        oscillator.connect(gainNode)
+        gainNode.connect(audioContext.destination)
+
+        oscillator.frequency.value = freq
+        oscillator.type = "sine"
+
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime)
+        gainNode.gain.linearRampToValueAtTime(this.volume * 0.3, audioContext.currentTime + 0.01)
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration)
+
+        oscillator.start(audioContext.currentTime)
+        oscillator.stop(audioContext.currentTime + duration)
+      })
+    }
+  }
+
+  play(soundName) {
+    if (this.sounds[soundName]) {
+      this.sounds[soundName]()
+    }
+  }
+
+  setVolume(volume) {
+    this.volume = volume / 100
+  }
+
+  toggleMute() {
+    this.muted = !this.muted
+    return this.muted
   }
 }
 
@@ -169,14 +232,6 @@ class AchievementSystem {
       this.achievements[achievementKey].progress = Math.max(this.achievements[achievementKey].progress, value)
     }
   }
-
-  getUnlockedCount() {
-    return Object.values(this.achievements).filter((a) => a.unlocked).length
-  }
-
-  getTotalCount() {
-    return Object.keys(this.achievements).length
-  }
 }
 
 // Obstacle Pattern System
@@ -210,16 +265,6 @@ class ObstaclePatternSystem {
         ],
         warning: "Mixed Challenge!",
       },
-      {
-        name: "Speed Test",
-        obstacles: [
-          { type: "ground", width: 20, height: 30, delay: 0 },
-          { type: "ground", width: 20, height: 35, delay: 60 },
-          { type: "ground", width: 20, height: 40, delay: 120 },
-          { type: "ground", width: 20, height: 30, delay: 180 },
-        ],
-        warning: "Speed Test!",
-      },
     ]
     this.currentPattern = null
     this.patternProgress = 0
@@ -227,7 +272,6 @@ class ObstaclePatternSystem {
   }
 
   shouldTriggerPattern(score, gameSpeed) {
-    // Trigger patterns based on score and difficulty
     return score > 200 && Math.random() < 0.15 && !this.currentPattern
   }
 
@@ -257,7 +301,7 @@ class ObstaclePatternSystem {
       if (this.patternProgress >= this.currentPattern.obstacles.length) {
         this.currentPattern = null
         this.patternTimer = 0
-        return true // Pattern completed
+        return true
       }
     }
     return false
@@ -307,9 +351,29 @@ class DifficultySystem {
 // Main Game Class
 class DinoGame {
   constructor() {
-    this.gameState = new GameState()
+    this.soundSystem = new SoundSystem()
+    this.achievementSystem = new AchievementSystem()
     this.patternSystem = new ObstaclePatternSystem()
     this.difficultySystem = new DifficultySystem()
+
+    // Game state
+    this.currentScreen = "main-menu"
+    this.selectedCharacter = "dino"
+    this.selectedDifficulty = "easy"
+    this.settings = {
+      volume: 30,
+      graphicsQuality: "medium",
+      showFPS: false,
+    }
+    this.stats = {
+      totalGamesPlayed: 0,
+      totalScore: 0,
+      totalJumps: 0,
+      totalDucks: 0,
+      totalObstaclesAvoided: 0,
+      longestCombo: 0,
+      totalPlayTime: 0,
+    }
 
     // Game elements
     this.gameContainer = document.getElementById("game-container")
@@ -326,7 +390,7 @@ class DinoGame {
     this.patternIndicator = document.getElementById("pattern-indicator")
     this.comboIndicator = document.getElementById("combo-indicator")
 
-    // Game state
+    // Game variables
     this.score = 0
     this.highScore = 0
     this.isGameOver = false
@@ -344,7 +408,7 @@ class DinoGame {
     // Combo system
     this.combo = 0
     this.comboTimer = 0
-    this.comboDecayTime = 180 // frames
+    this.comboDecayTime = 180
 
     // Timing and spawning
     this.obstacleSpawnTimer = 0
@@ -355,13 +419,12 @@ class DinoGame {
     this.obstacles = []
     this.powerUps = []
     this.particles = []
-    this.clickEffects = []
 
     // Player dimensions
-    this.playerWidth = this.playerElement.offsetWidth
-    this.playerHeight = this.playerElement.offsetHeight
-    this.gameContainerWidth = this.gameContainer.offsetWidth
-    this.gameContainerHeight = this.gameContainer.offsetHeight
+    this.playerWidth = 40
+    this.playerHeight = 60
+    this.gameContainerWidth = 900
+    this.gameContainerHeight = 500
 
     // Power-up state
     this.activePowerUp = null
@@ -379,7 +442,7 @@ class DinoGame {
     this.frameCount = 0
     this.lastTime = performance.now()
 
-    // Game session stats
+    // Session stats
     this.sessionStats = {
       jumps: 0,
       ducks: 0,
@@ -393,10 +456,34 @@ class DinoGame {
   }
 
   init() {
+    this.loadData()
     this.setupEventListeners()
     this.loadHighScore()
     this.showScreen("main-menu")
     this.updateDifficultyIndicator()
+  }
+
+  loadData() {
+    const saved = localStorage.getItem("dinoGameData")
+    if (saved) {
+      const data = JSON.parse(saved)
+      this.settings = { ...this.settings, ...data.settings }
+      this.stats = { ...this.stats, ...data.stats }
+      if (data.achievements) {
+        this.achievementSystem.achievements = data.achievements
+      }
+    }
+  }
+
+  saveData() {
+    localStorage.setItem(
+      "dinoGameData",
+      JSON.stringify({
+        settings: this.settings,
+        achievements: this.achievementSystem.achievements,
+        stats: this.stats,
+      }),
+    )
   }
 
   setupEventListeners() {
@@ -409,19 +496,19 @@ class DinoGame {
 
     // Character selection
     document.querySelectorAll(".character-option").forEach((option) => {
-      option.addEventListener("click", (e) => {
+      option.addEventListener("click", () => {
         document.querySelectorAll(".character-option").forEach((o) => o.classList.remove("active"))
         option.classList.add("active")
-        this.gameState.selectedCharacter = option.dataset.character
+        this.selectedCharacter = option.dataset.character
       })
     })
 
     // Difficulty selection
     document.querySelectorAll(".difficulty-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
+      btn.addEventListener("click", () => {
         document.querySelectorAll(".difficulty-btn").forEach((b) => b.classList.remove("active"))
         btn.classList.add("active")
-        this.gameState.selectedDifficulty = btn.dataset.difficulty
+        this.selectedDifficulty = btn.dataset.difficulty
         this.updateDifficultyIndicator()
       })
     })
@@ -432,8 +519,13 @@ class DinoGame {
 
     // Click/touch controls
     this.gameContainer.addEventListener("pointerdown", (e) => this.handlePointerDown(e))
-    this.gameContainer.addEventListener("pointerup", (e) => this.handlePointerUp(e))
-    this.gameContainer.addEventListener("pointermove", (e) => this.handlePointerMove(e))
+    this.gameContainer.addEventListener("pointerup", () => this.handlePointerUp())
+
+    // Mobile controls
+    document.getElementById("jump-btn").addEventListener("pointerdown", () => this.jump())
+    document.getElementById("duck-btn").addEventListener("pointerdown", () => this.startDuck())
+    document.getElementById("duck-btn").addEventListener("pointerup", () => this.endDuck())
+    document.getElementById("pause-btn").addEventListener("click", () => this.togglePause())
 
     // Pause menu
     document.getElementById("resume-btn").addEventListener("click", () => this.togglePause())
@@ -446,18 +538,18 @@ class DinoGame {
 
     // Settings
     document.getElementById("volume-slider").addEventListener("input", (e) => {
-      this.gameState.settings.volume = Number.parseInt(e.target.value)
+      this.settings.volume = Number.parseInt(e.target.value)
       document.getElementById("volume-value").textContent = e.target.value + "%"
-      this.updateAudioVolume()
+      this.soundSystem.setVolume(this.settings.volume)
     })
 
     document.getElementById("graphics-quality").addEventListener("change", (e) => {
-      this.gameState.settings.graphicsQuality = e.target.value
+      this.settings.graphicsQuality = e.target.value
       this.updateGraphicsQuality()
     })
 
     document.getElementById("show-fps").addEventListener("change", (e) => {
-      this.gameState.settings.showFPS = e.target.checked
+      this.settings.showFPS = e.target.checked
       this.fpsCounter.style.display = e.target.checked ? "block" : "none"
     })
 
@@ -470,13 +562,13 @@ class DinoGame {
       screen.style.display = "none"
     })
     document.getElementById(screenName).style.display = "flex"
-    this.gameState.currentScreen = screenName
+    this.currentScreen = screenName
   }
 
   startGame() {
     this.showScreen("game-screen")
     this.resetGame()
-    this.playerElement.className = `${this.gameState.selectedCharacter} running`
+    this.playerElement.className = `${this.selectedCharacter} running`
     this.gameLoop()
   }
 
@@ -494,46 +586,40 @@ class DinoGame {
     const achievementsList = document.getElementById("achievements-list")
     achievementsList.innerHTML = ""
 
-    for (const [key, achievement] of Object.entries(this.gameState.achievements.achievements)) {
+    for (const [key, achievement] of Object.entries(this.achievementSystem.achievements)) {
       const achievementElement = document.createElement("div")
       achievementElement.className = `achievement-item ${achievement.unlocked ? "unlocked" : ""}`
 
       const progressPercent = Math.min(100, (achievement.progress / achievement.target) * 100)
 
       achievementElement.innerHTML = `
-                <div class="achievement-icon">${achievement.unlocked ? "🏆" : "🔒"}</div>
-                <div class="achievement-title">${achievement.title}</div>
-                <div class="achievement-description">${achievement.description}</div>
-                <div class="achievement-progress">
-                    Progress: ${achievement.progress}/${achievement.target} (${progressPercent.toFixed(0)}%)
-                </div>
-            `
+        <div class="achievement-icon">${achievement.unlocked ? "🏆" : "🔒"}</div>
+        <div class="achievement-title">${achievement.title}</div>
+        <div class="achievement-description">${achievement.description}</div>
+        <div class="achievement-progress">
+          Progress: ${achievement.progress}/${achievement.target} (${progressPercent.toFixed(0)}%)
+        </div>
+      `
 
       achievementsList.appendChild(achievementElement)
     }
   }
 
   loadSettings() {
-    document.getElementById("volume-slider").value = this.gameState.settings.volume
-    document.getElementById("volume-value").textContent = this.gameState.settings.volume + "%"
-    document.getElementById("graphics-quality").value = this.gameState.settings.graphicsQuality
-    document.getElementById("show-fps").checked = this.gameState.settings.showFPS
-    this.fpsCounter.style.display = this.gameState.settings.showFPS ? "block" : "none"
+    document.getElementById("volume-slider").value = this.settings.volume
+    document.getElementById("volume-value").textContent = this.settings.volume + "%"
+    document.getElementById("graphics-quality").value = this.settings.graphicsQuality
+    document.getElementById("show-fps").checked = this.settings.showFPS
+    this.fpsCounter.style.display = this.settings.showFPS ? "block" : "none"
   }
 
   updateDifficultyIndicator() {
-    const difficulty = this.difficultySystem.getDifficulty(this.gameState.selectedDifficulty)
+    const difficulty = this.difficultySystem.getDifficulty(this.selectedDifficulty)
     this.difficultyIndicator.textContent = `Difficulty: ${difficulty.name}`
   }
 
-  updateAudioVolume() {
-    // Update audio volume based on settings
-    // In a real implementation, you'd update actual audio elements
-  }
-
   updateGraphicsQuality() {
-    // Adjust graphics quality based on settings
-    const quality = this.gameState.settings.graphicsQuality
+    const quality = this.settings.graphicsQuality
     if (quality === "low") {
       this.gameContainer.style.filter = "none"
     } else if (quality === "high") {
@@ -542,7 +628,7 @@ class DinoGame {
   }
 
   handleKeyDown(e) {
-    if (this.gameState.currentScreen !== "game-screen") return
+    if (this.currentScreen !== "game-screen") return
 
     if (e.code === "Space" || e.key === "ArrowUp" || e.key === "w" || e.key === "W") {
       e.preventDefault()
@@ -564,7 +650,7 @@ class DinoGame {
   }
 
   handleKeyUp(e) {
-    if (this.gameState.currentScreen !== "game-screen") return
+    if (this.currentScreen !== "game-screen") return
 
     if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") {
       this.endDuck()
@@ -572,7 +658,7 @@ class DinoGame {
   }
 
   handlePointerDown(e) {
-    if (this.gameState.currentScreen !== "game-screen") return
+    if (this.currentScreen !== "game-screen") return
 
     const rect = this.gameContainer.getBoundingClientRect()
     const clickX = e.clientX - rect.left
@@ -583,7 +669,6 @@ class DinoGame {
     if (this.isGameOver) {
       this.resetGame()
     } else {
-      // Determine action based on click position
       if (clickY > this.gameContainerHeight / 2) {
         this.startDuck()
       } else {
@@ -592,21 +677,16 @@ class DinoGame {
     }
   }
 
-  handlePointerUp(e) {
+  handlePointerUp() {
     if (this.isDucking) {
       this.endDuck()
     }
   }
 
-  handlePointerMove(e) {
-    // Could be used for gesture controls in the future
-  }
-
   handleResize() {
-    this.playerWidth = this.playerElement.offsetWidth
-    this.playerHeight = this.playerElement.offsetHeight
-    this.gameContainerWidth = this.gameContainer.offsetWidth
-    this.gameContainerHeight = this.gameContainer.offsetHeight
+    const container = this.gameContainer.getBoundingClientRect()
+    this.gameContainerWidth = container.width
+    this.gameContainerHeight = container.height
   }
 
   createClickEffect(x, y) {
@@ -641,7 +721,7 @@ class DinoGame {
   }
 
   updateScore() {
-    const difficulty = this.difficultySystem.getDifficulty(this.gameState.selectedDifficulty)
+    const difficulty = this.difficultySystem.getDifficulty(this.selectedDifficulty)
     const basePoints = 1
     const difficultyBonus = Math.floor(basePoints * difficulty.scoreMultiplier)
     const comboBonus = Math.floor(this.combo * 0.1)
@@ -652,7 +732,12 @@ class DinoGame {
     this.scoreDisplay.textContent = this.score
 
     // Check achievements
-    const newAchievements = this.gameState.achievements.checkAchievement("score", this.score, this.gameState.stats)
+    this.achievementSystem.checkAchievement("score", this.score, this.stats)
+
+    // Play point sound every 100 points
+    if (this.score % 100 === 0) {
+      this.soundSystem.play("point")
+    }
 
     // Increase game speed gradually
     if (this.gameSpeed < this.maxGameSpeed) {
@@ -661,7 +746,7 @@ class DinoGame {
 
     // Check for max speed achievement
     if (this.gameSpeed >= this.maxGameSpeed) {
-      this.gameState.achievements.checkAchievement("maxSpeed", 1, this.gameState.stats)
+      this.achievementSystem.checkAchievement("maxSpeed", 1, this.stats)
     }
 
     // Shorten obstacle spawn interval as game speeds up
@@ -687,17 +772,13 @@ class DinoGame {
       }
 
       this.sessionStats.jumps++
-      this.gameState.stats.totalJumps++
+      this.stats.totalJumps++
 
-      this.createParticles(
-        5,
-        Number.parseInt(this.playerElement.style.left) + this.playerWidth / 2,
-        this.gameContainerHeight - 40,
-        "#8B4513",
-      )
+      this.createParticles(5, 60 + this.playerWidth / 2, this.gameContainerHeight - 40, "#8B4513")
+      this.soundSystem.play("jump")
 
       // Check achievements
-      this.gameState.achievements.checkAchievement("jump", 1, this.gameState.stats)
+      this.achievementSystem.checkAchievement("jump", 1, this.stats)
     }
   }
 
@@ -707,13 +788,15 @@ class DinoGame {
       this.playerElement.classList.add("ducking")
       this.playerElement.classList.remove("running")
 
-      this.playerHeight = this.playerElement.offsetHeight
+      this.playerHeight = 30
 
       this.sessionStats.ducks++
-      this.gameState.stats.totalDucks++
+      this.stats.totalDucks++
+
+      this.soundSystem.play("duck")
 
       // Check achievements
-      this.gameState.achievements.checkAchievement("duck", 1, this.gameState.stats)
+      this.achievementSystem.checkAchievement("duck", 1, this.stats)
     }
   }
 
@@ -725,7 +808,7 @@ class DinoGame {
         this.playerElement.classList.add("running")
       }
 
-      this.playerHeight = this.playerElement.offsetHeight
+      this.playerHeight = 60
     }
   }
 
@@ -743,12 +826,8 @@ class DinoGame {
           this.playerElement.classList.add("running")
         }
 
-        this.createParticles(
-          8,
-          Number.parseInt(this.playerElement.style.left) + this.playerWidth / 2,
-          this.gameContainerHeight - 40,
-          "#8B4513",
-        )
+        this.createParticles(8, 60 + this.playerWidth / 2, this.gameContainerHeight - 40, "#8B4513")
+        this.soundSystem.play("land")
       }
     }
 
@@ -773,7 +852,7 @@ class DinoGame {
     let obsData = {}
 
     // Determine obstacle type based on difficulty and score
-    const difficulty = this.difficultySystem.getDifficulty(this.gameState.selectedDifficulty)
+    const difficulty = this.difficultySystem.getDifficulty(this.selectedDifficulty)
     const isFlyingObstacle = Math.random() < 0.3 && this.score > 150
 
     if (isFlyingObstacle) {
@@ -806,7 +885,7 @@ class DinoGame {
       obstacleElement.classList.add("obstacle")
 
       // Add spiky obstacles on harder difficulties
-      if (this.gameState.selectedDifficulty === "hard" || this.gameState.selectedDifficulty === "insane") {
+      if (this.selectedDifficulty === "hard" || this.selectedDifficulty === "insane") {
         if (Math.random() < 0.3) {
           obstacleElement.classList.add("spiky")
         }
@@ -877,7 +956,7 @@ class DinoGame {
   }
 
   createPowerUp() {
-    const difficulty = this.difficultySystem.getDifficulty(this.gameState.selectedDifficulty)
+    const difficulty = this.difficultySystem.getDifficulty(this.selectedDifficulty)
 
     if (this.score < 300 || Math.random() > difficulty.powerUpChance) return
 
@@ -935,9 +1014,10 @@ class DinoGame {
     }
 
     this.powerUpIndicator.style.display = "block"
+    this.soundSystem.play("powerUp")
 
     // Check achievements
-    this.gameState.achievements.checkAchievement("powerUp", this.powerUpCollected, this.gameState.stats)
+    this.achievementSystem.checkAchievement("powerUp", this.powerUpCollected, this.stats)
   }
 
   deactivatePowerUp() {
@@ -1061,14 +1141,14 @@ class DinoGame {
         this.combo++
         this.comboTimer = this.comboDecayTime
         this.sessionStats.obstaclesAvoided++
-        this.gameState.stats.totalObstaclesAvoided++
+        this.stats.totalObstaclesAvoided++
 
         // Update combo display
         this.updateComboDisplay()
 
         // Check achievements
-        this.gameState.achievements.checkAchievement("obstacle", 1, this.gameState.stats)
-        this.gameState.achievements.checkAchievement("combo", this.combo, this.gameState.stats)
+        this.achievementSystem.checkAchievement("obstacle", 1, this.stats)
+        this.achievementSystem.checkAchievement("combo", this.combo, this.stats)
 
         if (this.combo > this.sessionStats.maxCombo) {
           this.sessionStats.maxCombo = this.combo
@@ -1112,7 +1192,7 @@ class DinoGame {
 
     if (patternCompleted) {
       // Check for perfect pattern completion
-      this.gameState.achievements.checkAchievement("perfectPattern", 1, this.gameState.stats)
+      this.achievementSystem.checkAchievement("perfectPattern", 1, this.stats)
       this.patternIndicator.style.display = "none"
     }
 
@@ -1154,7 +1234,7 @@ class DinoGame {
     }
 
     return {
-      x: Number.parseInt(this.playerElement.style.left) + hitboxOffsetX,
+      x: 60 + hitboxOffsetX,
       y: this.playerY + hitboxOffsetY,
       width: hitboxWidth,
       height: hitboxHeight,
@@ -1205,7 +1285,7 @@ class DinoGame {
     } else {
       this.gameContainer.classList.add("night-mode")
       // Check night mode achievement
-      this.gameState.achievements.checkAchievement("nightMode", 1, this.gameState.stats)
+      this.achievementSystem.checkAchievement("nightMode", 1, this.stats)
     }
   }
 
@@ -1229,25 +1309,25 @@ class DinoGame {
     this.sessionStats.powerUpsCollected = this.powerUpCollected
 
     // Update global stats
-    this.gameState.stats.totalGamesPlayed++
-    this.gameState.stats.totalScore += this.score
-    this.gameState.stats.totalPlayTime += Math.floor((Date.now() - this.sessionStats.startTime) / 1000)
-    if (this.combo > this.gameState.stats.longestCombo) {
-      this.gameState.stats.longestCombo = this.combo
+    this.stats.totalGamesPlayed++
+    this.stats.totalScore += this.score
+    this.stats.totalPlayTime += Math.floor((Date.now() - this.sessionStats.startTime) / 1000)
+    if (this.combo > this.stats.longestCombo) {
+      this.stats.longestCombo = this.combo
     }
 
     // Check difficulty-specific achievements
-    if (this.gameState.selectedDifficulty === "hard") {
-      this.gameState.achievements.checkAchievement("hardDifficulty", 1, this.gameState.stats)
-    } else if (this.gameState.selectedDifficulty === "insane" && this.score >= 1000) {
-      this.gameState.achievements.checkAchievement("insaneDifficulty", this.score, this.gameState.stats)
+    if (this.selectedDifficulty === "hard") {
+      this.achievementSystem.checkAchievement("hardDifficulty", 1, this.stats)
+    } else if (this.selectedDifficulty === "insane" && this.score >= 1000) {
+      this.achievementSystem.checkAchievement("insaneDifficulty", this.score, this.stats)
     }
 
     // Check play time achievement
-    this.gameState.achievements.checkAchievement("playTime", this.gameState.stats.totalPlayTime, this.gameState.stats)
+    this.achievementSystem.checkAchievement("playTime", this.stats.totalPlayTime, this.stats)
 
     // Save all data
-    this.gameState.saveData()
+    this.saveData()
 
     // Show game over screen
     this.showGameOverScreen()
@@ -1262,12 +1342,8 @@ class DinoGame {
     }
 
     // Create explosion particles
-    this.createParticles(
-      20,
-      Number.parseInt(this.playerElement.style.left) + this.playerWidth / 2,
-      this.gameContainerHeight - this.playerHeight / 2,
-      "#FF6347",
-    )
+    this.createParticles(20, 60 + this.playerWidth / 2, this.gameContainerHeight - this.playerHeight / 2, "#FF6347")
+    this.soundSystem.play("collision")
   }
 
   showGameOverScreen() {
@@ -1275,27 +1351,28 @@ class DinoGame {
     const newAchievements = document.getElementById("new-achievements")
 
     finalStats.innerHTML = `
-            <h3>Final Stats</h3>
-            <p>Score: ${this.score}</p>
-            <p>Jumps: ${this.sessionStats.jumps}</p>
-            <p>Ducks: ${this.sessionStats.ducks}</p>
-            <p>Obstacles Avoided: ${this.sessionStats.obstaclesAvoided}</p>
-            <p>Max Combo: ${this.sessionStats.maxCombo}</p>
-            <p>Power-ups Collected: ${this.sessionStats.powerUpsCollected}</p>
-            <p>Difficulty: ${this.difficultySystem.getDifficulty(this.gameState.selectedDifficulty).name}</p>
-        `
+      <h3>Final Stats</h3>
+      <p>Score: ${this.score}</p>
+      <p>Jumps: ${this.sessionStats.jumps}</p>
+      <p>Ducks: ${this.sessionStats.ducks}</p>
+      <p>Obstacles Avoided: ${this.sessionStats.obstaclesAvoided}</p>
+      <p>Max Combo: ${this.sessionStats.maxCombo}</p>
+      <p>Power-ups Collected: ${this.sessionStats.powerUpsCollected}</p>
+      <p>Difficulty: ${this.difficultySystem.getDifficulty(this.selectedDifficulty).name}</p>
+    `
 
     // Show new achievements if any
-    const unlockedAchievements = Object.values(this.gameState.achievements.achievements).filter(
+    const unlockedAchievements = Object.values(this.achievementSystem.achievements).filter(
       (a) => a.unlocked && a.progress === a.target,
     )
 
     if (unlockedAchievements.length > 0) {
       newAchievements.innerHTML = `
-                <h4>🏆 New Achievements Unlocked!</h4>
-                ${unlockedAchievements.map((a) => `<p>• ${a.title}: ${a.description}</p>`).join("")}
-            `
+        <h4>🏆 New Achievements Unlocked!</h4>
+        ${unlockedAchievements.map((a) => `<p>• ${a.title}: ${a.description}</p>`).join("")}
+      `
       newAchievements.style.display = "block"
+      this.soundSystem.play("achievement")
     } else {
       newAchievements.style.display = "none"
     }
@@ -1319,8 +1396,9 @@ class DinoGame {
   }
 
   toggleMute() {
-    // Toggle mute functionality
-    // In a real implementation, you'd mute actual audio elements
+    const isMuted = this.soundSystem.toggleMute()
+    // You could add visual feedback here
+    console.log(isMuted ? "Sound muted" : "Sound unmuted")
   }
 
   goToMainMenu() {
@@ -1411,9 +1489,8 @@ class DinoGame {
 
     // Reset player
     this.playerElement.style.transform = `translateY(0px)`
-    this.playerElement.className = `${this.gameState.selectedCharacter} running`
-    this.playerElement.style.bottom = `0px`
-    this.playerElement.style.left = `60px`
+    this.playerElement.className = `${this.selectedCharacter} running`
+    this.playerHeight = 60
 
     // Reset animation
     this.ground.style.animationPlayState = "running"
@@ -1421,7 +1498,7 @@ class DinoGame {
     this.ground.style.animationDuration = `${currentInitialGroundAnimationDuration}s`
 
     // Apply difficulty settings
-    const difficulty = this.difficultySystem.getDifficulty(this.gameState.selectedDifficulty)
+    const difficulty = this.difficultySystem.getDifficulty(this.selectedDifficulty)
     this.gameSpeed *= difficulty.gameSpeedMultiplier
     this.obstacleSpawnInterval *= difficulty.obstacleSpawnRate
 
